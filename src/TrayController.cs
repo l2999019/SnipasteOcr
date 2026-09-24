@@ -154,22 +154,20 @@ public sealed class TrayController : IDisposable
 
     private static IntPtr CreateIcon()
     {
-        using var bmp = new Bitmap(16, 16);
-        using (var g = Graphics.FromImage(bmp))
+        // 从嵌入资源加载应用图标 (32x32, 托盘清晰且省内存)
+        var asm = typeof(TrayController).Assembly;
+        using var stream = asm.GetManifestResourceStream("SnipasteOcr.appicon.png");
+        if (stream != null)
         {
-            g.Clear(Color.Transparent);
-            using (var br = new SolidBrush(Color.FromArgb(255, 40, 98, 190)))
-                g.FillRectangle(br, 0, 0, 16, 16);
-            using (var pen = new Pen(Color.White, 1.4f))
-            {
-                g.DrawRectangle(pen, 3.5f, 3.5f, 9f, 9f);
-                g.DrawLine(pen, 8, 0, 8, 3);
-                g.DrawLine(pen, 8, 13, 8, 16);
-                g.DrawLine(pen, 0, 8, 3, 8);
-                g.DrawLine(pen, 13, 8, 16, 8);
-            }
+            using var full = new Bitmap(stream);
+            using var bmp = new Bitmap(full, new Size(32, 32));
+            return bmp.GetHicon();
         }
-        return bmp.GetHicon();
+        // 资源缺失时回退: 蓝色方块占位
+        using var fb = new Bitmap(32, 32);
+        using (var g = Graphics.FromImage(fb))
+            g.Clear(Color.FromArgb(255, 40, 98, 190));
+        return fb.GetHicon();
     }
 
     public void Dispose()

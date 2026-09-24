@@ -10,6 +10,7 @@
     <RootNamespace>SnipasteOcr</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
 
     <!-- NativeAOT: 发布为原生 exe, 无需安装 .NET 运行时 -->
     <PublishAot>true</PublishAot>
@@ -24,6 +25,11 @@
     <!-- .NET 10: 显式允许 WinForms 参与裁剪 (官方支持, 本应用不使用设计器/反射加载控件) -->
     <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
   </PropertyGroup>
+
+  <!-- 应用图标: PNG 嵌入资源 (托盘/运行时), ICO 用于 exe 文件图标 -->
+  <ItemGroup>
+    <EmbeddedResource Include="appicon.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Sdcb.SimdPaddleOCR" Version="1.4.2" />
