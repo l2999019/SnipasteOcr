@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SnipasteOcr</AssemblyName>
+    <RootNamespace>SnipasteOcr</RootNamespace>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- NativeAOT: 发布为原生 exe, 无需安装 .NET 运行时 -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- SimdPaddleOCR 官方要求: x64 AOT 必须指定 avx2, 否则 SIMD 内核被裁掉 -->
+    <IlcInstructionSet>avx2</IlcInstructionSet>
+    <!-- .NET 10: 显式允许 WinForms 参与裁剪 (官方支持, 本应用不使用设计器/反射加载控件) -->
+    <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Sdcb.SimdPaddleOCR" Version="1.4.2" />
+    <PackageReference Include="Sdcb.SimdPaddleOCR.Models.ChineseV6Medium" Version="1.0.0" />
+    <!-- 中文识别模型 (det+rec+字典), 嵌入程序集资源, 完全离线 -->
+  </ItemGroup>
+
+  <!-- SimdPaddleOCR 通过嵌入资源加载模型, AOT 裁剪必须保留核心与模型程序集 -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Sdcb.SimdPaddleOCR" />
+    <!--<TrimmerRootAssembly Include="Sdcb.SimdPaddleOCR.ModelProvider" />-->
+  </ItemGroup>
+
+</Project>
