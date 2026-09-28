@@ -34,6 +34,7 @@ public sealed class TrayController : IDisposable
     public event Action? SnipImageRequested;
     public event Action? ExitRequested;
 
+    /// <summary>注册窗口类与宿主窗口, 创建右键菜单和托盘图标; 任一步失败抛 Win32Exception</summary>
     public TrayController()
     {
         _instance = this;
@@ -91,6 +92,7 @@ public sealed class TrayController : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Shell_NotifyIcon 失败");
     }
 
+    /// <summary>宿主窗口过程: 处理托盘回调 (双击=截图识别, 右键=弹菜单), 其余走默认处理</summary>
     private static IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
         if (msg == TRAY_CALLBACK)
@@ -115,6 +117,7 @@ public sealed class TrayController : IDisposable
         return User32.DefWindowProc(hWnd, msg, wParam, lParam);
     }
 
+    /// <summary>在光标处弹出右键菜单并执行选中项 (弹菜单前需挂接前台线程)</summary>
     private void ShowMenu(IntPtr hWnd, int x, int y)
     {
         // 标准序列: 挂接前台线程 -> 置顶窗口 -> 弹菜单 -> 自身收 WM_NULL -> 解挂
@@ -152,6 +155,7 @@ public sealed class TrayController : IDisposable
         }
     }
 
+    /// <summary>从嵌入 PNG 资源生成 32x32 托盘图标; 资源缺失时用蓝色方块占位</summary>
     private static IntPtr CreateIcon()
     {
         // 从嵌入资源加载应用图标 (32x32, 托盘清晰且省内存)
@@ -170,6 +174,7 @@ public sealed class TrayController : IDisposable
         return fb.GetHicon();
     }
 
+    /// <summary>移除托盘图标, 销毁菜单/窗口/图标资源</summary>
     public void Dispose()
     {
         var nid = new Shell32.NOTIFYICONDATA

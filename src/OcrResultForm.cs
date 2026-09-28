@@ -44,6 +44,10 @@ public sealed class OcrResultForm : Form
     private readonly ToolStripButton _colsebtn = new();
     private string _statusText = string.Empty; // 右下角状态提示
 
+    /// <summary>
+    /// 初始化窗口: 无标题栏 (边缘可缩放), 初始按图片 1:1 显示 (超出工作区则收缩),
+    /// 显示后自动开始后台 OCR
+    /// </summary>
     public OcrResultForm(Bitmap source)
     {
         _src = source;
@@ -76,6 +80,7 @@ public sealed class OcrResultForm : Form
         Shown += (_, _) => StartOcr();
     }
 
+    /// <summary>构建工具栏: 缩放 / 全选 / 复制 / 保存 / 关闭</summary>
     private void BuildToolStrip()
     {
         _toolStrip.GripStyle = ToolStripGripStyle.Hidden;
@@ -137,6 +142,7 @@ public sealed class OcrResultForm : Form
 
     }
 
+    /// <summary>计算当前窗口内能容纳的最大缩放比例 (不超过 100%)</summary>
     private float ComputeFitScale()
     {
         float dpi = DpiFactor();
@@ -179,6 +185,7 @@ public sealed class OcrResultForm : Form
 
     // 缩放时窗口跟着图片大小联动; 图片比窗口大 (被钳到 fit) 时窗口不变
     // 缩放时窗口跟着图片显示大小联动: 放大窗口变大, 缩小窗口变小
+    /// <summary>按当前缩放比例联动窗口尺寸; 放不下时保持窗口大小 (图片居中裁切)</summary>
     private void FitWindowToImage()
     {
         float dpi = DpiFactor();
@@ -212,6 +219,7 @@ public sealed class OcrResultForm : Form
         Invalidate();
     }
 
+    /// <summary>更新工具栏上的缩放比例标签</summary>
     private void UpdateZoomLabel()
     {
         _zoomLabel.Text = $"{(int)Math.Round(_scale * 100)}%";
@@ -219,6 +227,7 @@ public sealed class OcrResultForm : Form
 
     // ===== 坐标换算 (图片以缩放后尺寸居中绘制) =====
 
+    /// <summary>图片在客户区内的居中矩形 (物理像素, 绘制直接可用)</summary>
     private RectangleF ImageRect()
     {
         // 返回物理像素坐标 (绘制时直接可用)
@@ -246,6 +255,7 @@ public sealed class OcrResultForm : Form
 
     // ===== 绘制 =====
 
+    /// <summary>渲染原图 + 识别框叠加: 选中=蓝色填充, 部分选中=加深高亮, 悬停=虚线, 其余=淡蓝边框</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -340,6 +350,7 @@ public sealed class OcrResultForm : Form
 
     // ===== 鼠标交互 =====
 
+    /// <summary>鼠标命中检测: 客户区坐标换算到原图坐标后, 从上层到下层的四边形逐个测试</summary>
     private int HitTest(Point clientPt)
     {
         if (!_ocrDone)
@@ -383,8 +394,10 @@ public sealed class OcrResultForm : Form
 
     // ===== 字符定位: 检测框是 4 边形, 按字符宽度权重把字符投影到行内位置 =====
 
+    /// <summary>字符宽度权重: 空格窄, 半角字符约 0.6 倍, 全角字符 1.0 倍 (用于行内字符定位)</summary>
     private static float CharWeight(char c) => c == ' ' || c == '\u3000' ? 0.35f : (c < 256 ? 0.6f : 1.0f);
 
+    /// <summary>预计算每行字符的累计宽度权重表, 供字符命中/高亮插值使用</summary>
     private static float[][] BuildCharWeights(PaddleOcrLine[] lines)
     {
         var cum = new float[lines.Length][];
@@ -409,6 +422,7 @@ public sealed class OcrResultForm : Form
     }
 
     // 原图坐标 -> 行内字符索引 (0..n, n = 文本长度)
+    /// <summary>原图坐标在检测框行内方向上的归一化位置 (0=行首, 1=行尾), 处理 180 度旋转</summary>
     private int CharIndexAt(int line, float ix, float iy)
     {
         var cum = _lineCumW[line];
@@ -425,6 +439,7 @@ public sealed class OcrResultForm : Form
     }
 
     // 行内字符范围 -> 高亮四边形 (逻辑客户端坐标)
+    /// <summary>行内字符范围 [start, end) 对应的高亮四边形顶点</summary>
     private PointF[] CharRangePoints(int line, int start, int end)
     {
         var ir = ImageRect();
@@ -447,6 +462,7 @@ public sealed class OcrResultForm : Form
         return new[] { Top(uA), Top(uB), Bot(uB), Bot(uA) };
     }
 
+    /// <summary>左键按下: 空白处=清除选中/拖动窗口, 文本块上=Shift 多选 或 进入字符级拖选</summary>
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
@@ -490,6 +506,7 @@ public sealed class OcrResultForm : Form
         Invalidate();
     }
 
+    /// <summary>鼠标移动: 拖动窗口 / 字符级拖选实时更新选区 / hover 提示</summary>
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
@@ -563,6 +580,7 @@ public sealed class OcrResultForm : Form
         }
     }
 
+    /// <summary>Ctrl+滚轮以 1.15 倍步长缩放</summary>
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
@@ -571,6 +589,7 @@ public sealed class OcrResultForm : Form
         Zoom(e.Delta > 0 ? 1.15f : 1f / 1.15f);
     }
 
+    /// <summary>左键松开: 未拖动的字符级按下视为单击 (整行选中); 点击空白处清空选中</summary>
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
@@ -640,6 +659,7 @@ public sealed class OcrResultForm : Form
 
     // ===== 键盘 =====
 
+    /// <summary>快捷键处理: Ctrl+C 复制选中 / Ctrl+A 全选 / +/- 缩放 / 0 适应 / Esc 关闭</summary>
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         const int WM_KEYDOWN = 0x0100;
@@ -681,6 +701,7 @@ public sealed class OcrResultForm : Form
 
     // ===== 文本 =====
 
+    /// <summary>全部识别文本 (换行拼接, 忽略空行)</summary>
     private string GetAllText()
     {
         if (_lines.Length == 0)
@@ -688,6 +709,7 @@ public sealed class OcrResultForm : Form
         return string.Join("\n", _lines.Select(l => l.Text).Where(t => !string.IsNullOrWhiteSpace(t)));
     }
 
+    /// <summary>当前选中的文本: 整行选中按行取, 行内部分选中取 [Start, End) 子串</summary>
     private string GetSelectedText()
     {
         if (_selected.Count == 0)
@@ -706,6 +728,7 @@ public sealed class OcrResultForm : Form
 
     private bool HasSelection() => _selected.Count > 0 || _partial is not null;
 
+    /// <summary>当前选中字符数 (用于状态栏提示)</summary>
     private int SelectedCharCount()
     {
         int n = 0;
@@ -721,6 +744,7 @@ public sealed class OcrResultForm : Form
         return n;
     }
 
+    /// <summary>刷新右下角状态栏: 有选中显示字数, 否则显示操作提示</summary>
     private void UpdateIdleStatus()
     {
         if (!_ocrDone)
@@ -731,6 +755,7 @@ public sealed class OcrResultForm : Form
             SetStatus($"{_lines.Length} 个文本块 · 单击/拖选 · Shift 多选 · Ctrl+滚轮缩放");
     }
 
+    /// <summary>文本写入剪贴板并在状态栏反馈结果</summary>
     private void CopyText(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -749,6 +774,7 @@ public sealed class OcrResultForm : Form
         }
     }
 
+    /// <summary>保存原图为 PNG</summary>
     private void SaveImage()
     {
         using var dlg = new SaveFileDialog
@@ -772,6 +798,7 @@ public sealed class OcrResultForm : Form
 
     // ===== OCR =====
 
+    /// <summary>后台线程执行 OCR, 完成后切回 UI 线程刷新识别结果; 失败时状态栏提示</summary>
     private void StartOcr()
     {
         _cts?.Cancel();
@@ -818,6 +845,7 @@ public sealed class OcrResultForm : Form
         });
     }
 
+    /// <summary>取消 OCR 任务并释放位图</summary>
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _cts?.Cancel();

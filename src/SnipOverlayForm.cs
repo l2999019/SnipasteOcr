@@ -13,6 +13,7 @@ public sealed class SnipOverlayForm : Form
     private bool _dragging;
     private Rectangle? _selection; // 客户区坐标
 
+    /// <summary>构造覆盖层并在显示前抓取整屏截图; useOcr 决定确认后走 OCR 还是复制图片</summary>
     public SnipOverlayForm(bool useOcr)
     {
         _useOcr = useOcr;
@@ -34,8 +35,10 @@ public sealed class SnipOverlayForm : Form
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
     }
 
+    /// <summary>物理像素/逻辑像素比例 (处理多显示器 DPI 缩放)</summary>
     private float ScaleFactor => _screen.Width / (float)ClientSize.Width;
 
+    /// <summary>绘制: 全屏底图 + 选区遮罩/边框/尺寸标签; 未框选时底部显示操作提示</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -79,6 +82,7 @@ public sealed class SnipOverlayForm : Form
         }
     }
 
+    /// <summary>右键取消; 左键按下记录框选起点</summary>
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
@@ -93,6 +97,7 @@ public sealed class SnipOverlayForm : Form
         _dragging = true;
     }
 
+    /// <summary>拖动中实时更新选区 (矩形未变化则不触发重绘)</summary>
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
@@ -107,6 +112,7 @@ public sealed class SnipOverlayForm : Form
         }
     }
 
+    /// <summary>结束框选; 小于 5px 视为单击, 保留上次选区 (保证双击第二下不清空选区)</summary>
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
@@ -121,12 +127,14 @@ public sealed class SnipOverlayForm : Form
         Invalidate();
     }
 
+    /// <summary>双击确认选区</summary>
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         base.OnMouseDoubleClick(e);
         Confirm();
     }
 
+    /// <summary>Esc 取消, 回车确认</summary>
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
@@ -136,6 +144,7 @@ public sealed class SnipOverlayForm : Form
             Confirm();
     }
 
+    /// <summary>两点归一化为左上角 + 宽高的矩形</summary>
     private static Rectangle RectFromPoints(Point a, Point b)
     {
         int x = Math.Min(a.X, b.X);
@@ -143,6 +152,10 @@ public sealed class SnipOverlayForm : Form
         return new Rectangle(x, y, Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
     }
 
+    /// <summary>
+    /// 确认选区: 客户区坐标换算为物理像素后裁剪原图;
+    /// OCR 模式打开结果窗口, 否则图片写入剪贴板; 未框选时默认取屏幕中央 1/2 区域
+    /// </summary>
     private void Confirm()
     {
         float sf = ScaleFactor;
@@ -166,6 +179,7 @@ public sealed class SnipOverlayForm : Form
         }
 
         var crop = new Bitmap(physical.Width, physical.Height);
+        // 最近邻插值裁剪, 保持像素精确 (不做缩放失真)
         using (var g = Graphics.FromImage(crop))
         {
             g.InterpolationMode = InterpolationMode.NearestNeighbor;
@@ -195,6 +209,7 @@ public sealed class SnipOverlayForm : Form
         }
     }
 
+    /// <summary>释放全屏位图</summary>
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _screen.Dispose();

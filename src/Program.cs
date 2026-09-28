@@ -12,13 +12,18 @@ internal static class Program
     private static Mutex? _singleInstanceMutex;
 
     [STAThread]
+    /// <summary>
+    /// 程序入口: 单实例检查 -> 托盘/热键初始化 -> 手动消息循环
+    /// </summary>
     private static int Main(string[] args)
     {
         try
         {
             ApplicationConfiguration.Initialize();
+            // WinForms 全局初始化 (DPI 感知/默认控件行为)
 
             _singleInstanceMutex = new Mutex(true, @"Local\SnipasteOcr.SingleInstance", out bool createdNew);
+            // 命名 Mutex 防多开: 已存在则提示后退出
             if (!createdNew)
             {
                 MessageBox.Show("SnipasteOCR 已在运行 (请查看系统托盘)。", "SnipasteOCR", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -26,12 +31,14 @@ internal static class Program
             }
 
             using var tray = new TrayController();
+            // 托盘图标 + 不可见宿主窗口; 全局热键也注册在该窗口上
             tray.SnipOcrRequested += () => SnipCoordinator.Start(ocr: true);
             tray.SnipImageRequested += () => SnipCoordinator.Start(ocr: false);
 
             IntPtr hwnd = tray.WindowHandle;
 
             var failures = new List<string>();
+            // 注册全局热键; 失败项 (常见: 被浏览器/IDE 占用) 收集后统一提示
             if (!User32.RegisterHotKey(hwnd, (int)HotKeyId.SnipOcr, 0, (uint)Keys.F1))
             {
                 failures.Add($"F1 注册失败: {Marshal.GetLastWin32Error()}");
@@ -55,6 +62,7 @@ internal static class Program
             {
                 try
                 {
+                    // 手动消息泵: 泵空消息队列, 空闲时睡 1ms (NativeAOT 下无 MessageLoop.Run)
                     while (User32.PeekMessage(out var msg, IntPtr.Zero, 0, 0, User32.PM_REMOVE))
                     {
                         if (msg.message == User32.WM_HOTKEY)
@@ -73,6 +81,7 @@ internal static class Program
                 }
                 catch
                 {
+                    // 极端异常不致命, 降速后继续重试, 避免死循环空转
                     Thread.Sleep(100);
                 }
             }
@@ -84,6 +93,7 @@ internal static class Program
         }
         finally
         {
+            // 退出前释放 OCR 引擎 (SIMD 内存缓冲)
             OcrService.Instance.Dispose();
         }
     }

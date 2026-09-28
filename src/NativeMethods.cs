@@ -1,8 +1,13 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
+/// <summary>
+/// Win32 P/Invoke 声明集: 消息循环 / 热键 / 窗口 / 菜单 / 托盘 / 输入模拟。
+/// 用于 NativeAOT 手动消息循环与纯 Win32 托盘实现
+/// </summary>
 namespace SnipasteOcr.Native;
 
+    /// <summary>热键 ID (传给 RegisterHotKey, WM_HOTKEY 消息 wParam 返回)</summary>
 public enum HotKeyId
 {
     SnipOcr = 0xB001,
@@ -84,15 +89,19 @@ public static class User32
     public const uint PM_REMOVE = 0x0001;
     public const uint PM_NOYIELD = 0x0002;
 
+    /// <summary>从消息队列取消息; hWnd=0 取当前线程全部消息, PM_REMOVE 表示取出</summary>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+    /// <summary>查询虚拟键状态 (高位 0x8000 = 当前按下); 用于 WndProc 兜底判断 Ctrl</summary>
     [DllImport("user32.dll")]
     public static extern short GetKeyState(int nVirtKey);
 
+    /// <summary>把键盘/鼠标消息翻译成字符消息 (WM_CHAR 等), 配合 DispatchMessage 使用</summary>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool TranslateMessage(ref MSG lpMsg);
+    /// <summary>把消息派发给对应窗口的 WndProc</summary>
 
     [DllImport("user32.dll")]
     public static extern IntPtr DispatchMessage(ref MSG lpMsg);
@@ -101,55 +110,67 @@ public static class User32
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>注册全局热键 (无修饰键, 仅 F1/F2 这类虚拟键)</summary>
     public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>注销热键</summary>
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     // ===== 窗口类 / 窗口 =====
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    /// <summary>注册窗口类; 成功返回类原子号, 失败 0</summary>
     public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    /// <summary>创建窗口 (含扩展样式), 返回窗口句柄</summary>
     public static extern IntPtr CreateWindowEx(
         uint dwExStyle, string lpClassName, string lpWindowName, uint dwStyle,
         int x, int y, int nWidth, int nHeight,
         IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
 
     [DllImport("user32.dll")]
+    /// <summary>默认窗口过程: 未处理的系统消息交给系统 (默认光标/边框/销毁等)</summary>
     public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>销毁窗口 (异步, 会发 WM_DESTROY)</summary>
     public static extern bool DestroyWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>显示/隐藏窗口; SW_HIDE 隐藏, SW_SHOWNA 显示但不抢焦点</summary>
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     public const int SW_HIDE = 0;
     public const int SW_SHOWNA = 8;
 
     [DllImport("user32.dll")]
+    /// <summary>把窗口设为前台 (弹菜单前必须, 否则菜单立即消失)</summary>
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     // ===== 菜单 =====
 
     [DllImport("user32.dll", SetLastError = true)]
+    /// <summary>创建弹出菜单</summary>
     public static extern IntPtr CreatePopupMenu();
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>追加菜单项 (文本项传 ID, 分隔线传 MF_SEPARATOR + 空文本)</summary>
     public static extern bool AppendMenu(IntPtr hMenu, uint uFlags, IntPtr uIdNewItem, string? lpNewItem);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>销毁菜单</summary>
     public static extern bool DestroyMenu(IntPtr hMenu);
 
     [DllImport("user32.dll", SetLastError = true)]
+    /// <summary>在指定屏幕坐标弹出菜单并阻塞等待选择; TPM_RETURNCMD 时返回可见项位置(0基)</summary>
     public static extern int TrackPopupMenuEx(
     IntPtr hMenu,
     uint uFlags,
@@ -163,9 +184,11 @@ public static class User32
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>向窗口异步投递消息 (弹菜单后补一个 WM_NULL, 让主循环知道菜单已处理完毕)</summary>
     public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    /// <summary>销毁图标句柄</summary>
     public static extern bool DestroyIcon(IntPtr handle);
 }
 
