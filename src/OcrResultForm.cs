@@ -193,7 +193,9 @@ public sealed class OcrResultForm : Form
         int newH = Math.Max(MinimumSize.Height, (int)Math.Round(_src.Height * _scale / dpi) + _toolStrip.Height + 8);
         if (newW == ClientSize.Width && newH == ClientSize.Height)
             return; // 尺寸没变
-        var wa = SystemInformation.WorkingArea;
+        // 必须用窗口所在屏幕的工作区: SystemInformation.WorkingArea 永远是主屏,
+        // 副屏 (负坐标) 的窗口会被下面的钳制逻辑拉回主屏
+        var wa = Screen.FromControl(this).WorkingArea;
         if (newW > wa.Width || newH > wa.Height)
             return; // 超出屏幕工作区, 窗口不再变大 (图片按窗口居中裁切)
         // 保持左上角不动, 限制在工作区内
