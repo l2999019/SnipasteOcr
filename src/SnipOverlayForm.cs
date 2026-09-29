@@ -1,4 +1,4 @@
-﻿using System.Drawing.Drawing2D;
+using System.Drawing.Drawing2D;
 
 namespace SnipasteOcr;
 
@@ -104,7 +104,9 @@ public sealed class SnipOverlayForm : Form
         if (_dragging)
         {
             var rect = RectFromPoints(_anchor, e.Location);
-            if (_selection != rect)
+            // 与 OnMouseUp 同一 5px 阈值: 点击时鼠标常漂移 1~3px,
+            // 微小矩形不能覆盖已有选区 (否则单击会把选区"抹掉", 之后双击确认时选区消失)
+            if (rect.Width >= 5 && rect.Height >= 5 && _selection != rect)
             {
                 _selection = rect;
                 Invalidate();
