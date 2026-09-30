@@ -15,6 +15,12 @@
   - `Ctrl+C` 复制选中内容(整行或选中的字符范围),`Ctrl+A` 全选
   - `Ctrl+滚轮` / `+` / `-` 缩放,`0` 适应窗口,`Esc` 关闭
   - 一键复制全部 / 保存截图为 PNG
+ 
+## 效果图
+- **标注工具栏** —
+<img width="712" height="593" alt="10c1da7a-454c-472d-99cb-38a3011a14fe" src="https://github.com/user-attachments/assets/ba8f9fa7-539e-4882-a8f1-8c12cc75ce08" />
+- **OCR识别效果** —
+<img width="546" height="221" alt="image" src="https://github.com/user-attachments/assets/2f90f98c-e077-4c05-8813-6ef5b44c428e" />
 
 ## 系统要求
 
