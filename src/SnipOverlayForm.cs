@@ -68,7 +68,7 @@ public sealed class SnipOverlayForm : Form
 
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
-       // TopMost = true;
+        TopMost = true;
         Cursor = Cursors.Cross;
         StartPosition = FormStartPosition.Manual;
         Bounds = vs;

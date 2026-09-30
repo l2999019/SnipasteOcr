@@ -624,7 +624,7 @@ public sealed class OcrResultForm : Form
     }
 
     // 无边框窗体: 边缘 6 像素内返回对应命中区, 由系统处理缩放并显示缩放光标;
-    // 另外在 WM_KEYDOWN 兜底处理 Ctrl+C (手动消息循环下 ProcessCmdKey 可能不生效)
+    // 另外在 WM_KEYDOWN 兜底处理 Ctrl+C / Ctrl+A (手动消息循环下 ProcessCmdKey 可能不生效)
     protected override void WndProc(ref Message m)
     {
         const int WM_NCHITTEST = 0x0084;
@@ -655,6 +655,12 @@ public sealed class OcrResultForm : Form
                 m.Result = (IntPtr)0;
                 return;
             }
+            if (ctrl && key == 0x41)
+            {
+                SelectAll();
+                m.Result = (IntPtr)0;
+                return;
+            }
         }
         base.WndProc(ref m);
     }
@@ -674,9 +680,7 @@ public sealed class OcrResultForm : Form
                 CopyText(GetSelectedText());
                 return true;
             case Keys.Control | Keys.A:
-                _selected.Clear();
-                _partial = null;
-                for (int i = 0; i < _lines.Length; i++) _selected.Add(i);
+                SelectAll();
                 Invalidate();
                 return true;
             case Keys.Add:
@@ -702,6 +706,14 @@ public sealed class OcrResultForm : Form
     }
 
     // ===== 文本 =====
+
+    /// <summary>全选: 清空并选中全部识别行 (Ctrl+A / 工具栏全选按钮)</summary>
+    private void SelectAll()
+    {
+        _selected.Clear();
+        _partial = null;
+        for (int i = 0; i < _lines.Length; i++) _selected.Add(i);
+    }
 
     /// <summary>全部识别文本 (换行拼接, 忽略空行)</summary>
     private string GetAllText()
