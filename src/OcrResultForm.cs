@@ -681,7 +681,7 @@ public sealed class OcrResultForm : Form
                 return true;
             case Keys.Control | Keys.A:
                 SelectAll();
-                Invalidate();
+                //Invalidate();
                 return true;
             case Keys.Add:
             case Keys.Oemplus:
@@ -713,6 +713,7 @@ public sealed class OcrResultForm : Form
         _selected.Clear();
         _partial = null;
         for (int i = 0; i < _lines.Length; i++) _selected.Add(i);
+        Invalidate();
     }
 
     /// <summary>全部识别文本 (换行拼接, 忽略空行)</summary>
