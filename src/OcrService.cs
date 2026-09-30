@@ -1,4 +1,4 @@
-﻿using System.Drawing.Imaging;
+using System.Drawing.Imaging;
 using Sdcb.SimdPaddleOCR;
 using Sdcb.SimdPaddleOCR.Models.ChineseV6Medium;
 
@@ -23,25 +23,22 @@ public sealed class OcrService : IDisposable
     public event Action<string>? StatusChanged;
 
     /// <summary>
-    /// 识别位图中的文字。先瞬时拷贝像素, 再锁像素缓冲推理,
-    /// 整个过程不持有位图锁, UI 线程可随时重绘
+    /// 识别文字。入参是 TrySnapshot 预先拷出的像素缓冲,
+    /// 后台推理期间不接触源 Bitmap, 避免与 UI 线程的 DrawImage 抢位图锁
     /// </summary>
-    public PaddleOcrResult Recognize(Bitmap image, CancellationToken cancellationToken)
+    public PaddleOcrResult Recognize(byte[] pixels, int width, int height, int stride, CancellationToken cancellationToken)
     {
-        // 瞬时锁定: 仅复制像素, 微秒级; 推理期间不持有位图锁
-        byte[] pixels = Snapshot(image, out int width, out int height, out int stride);
-
         var ocr = EnsureInitialized();
         cancellationToken.ThrowIfCancellationRequested();
-
-        lock (pixels)
-        {
-            return ocr.Run(pixels.AsSpan(), width, height, stride, ImagePixelFormat.Bgra32);
-        }
+        return ocr.Run(pixels.AsSpan(), width, height, stride, ImagePixelFormat.Bgra32);
     }
 
-    /// <summary>LockBits 只读锁定 + Marshal.Copy 像素快照, 立即解锁 (微秒级)</summary>
-    private static byte[] Snapshot(Bitmap image, out int width, out int height, out int stride)
+    /// <summary>
+    /// 快照: LockBits 只读锁定 + Marshal.Copy 拷贝像素, 立即解锁 (微秒级)。
+    /// 应在 UI 线程、窗口显示之前调用: 若后台线程的 LockBits 与 UI 的 DrawImage 并发,
+    /// GDI+ 同一 Bitmap 的锁会冲突 (DrawImage 内部也持锁), 抛 "Bitmap region is already locked"。
+    /// </summary>
+    public static byte[]? TrySnapshot(Bitmap image, out int width, out int height, out int stride)
     {
         width = image.Width;
         height = image.Height;

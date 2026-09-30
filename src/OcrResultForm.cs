@@ -287,7 +287,7 @@ public sealed class OcrResultForm : Form
         if (_ocrDone)
         {
             using var selBrush = new SolidBrush(Color.FromArgb(90, 33, 150, 243));
-            using var selPen = new Pen(Color.FromArgb(255, 33, 150, 243), 2f);
+            using var selPen = new Pen(Color.FromArgb(255, 33, 150, 243), 2f); 
             using var hoverPen = new Pen(Color.FromArgb(255, 255, 193, 7), 1.6f) { DashStyle = DashStyle.Dash };
             using var idlePen = new Pen(Color.FromArgb(160, 33, 150, 243), 1.2f);
 
@@ -807,13 +807,21 @@ public sealed class OcrResultForm : Form
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
         var service = OcrService.Instance;
-        var img = _src;
+        // UI 线程、显示前做像素快照: 后台线程只拿 byte[], 不接触 _src,
+        // 避免与 OnPaint 的 DrawImage 并发抢位图锁 (Bitmap region is already locked)
+        var pixels = OcrService.TrySnapshot(_src, out var w, out var h, out var stride);
+        if (pixels is null)
+        {
+            SetStatus("截图快照失败, 无法识别");
+            _ocrDone = true;
+            return;
+        }
 
         Task.Run(() =>
         {
             try
             {
-                var result = service.Recognize(img, token);
+                var result = service.Recognize(pixels, w, h, stride, token);
                 if (token.IsCancellationRequested || !this.IsHandleCreated)
                     return;
                 this.BeginInvoke(() =>
