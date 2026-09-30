@@ -19,6 +19,7 @@
 ## 效果图
 - **标注工具栏** —
 <img width="712" height="593" alt="10c1da7a-454c-472d-99cb-38a3011a14fe" src="https://github.com/user-attachments/assets/ba8f9fa7-539e-4882-a8f1-8c12cc75ce08" />
+
 - **OCR识别效果** —
 <img width="546" height="221" alt="image" src="https://github.com/user-attachments/assets/2f90f98c-e077-4c05-8813-6ef5b44c428e" />
 
