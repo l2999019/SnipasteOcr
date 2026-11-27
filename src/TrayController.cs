@@ -16,7 +16,12 @@ public sealed class TrayController : IDisposable
     private const int CMD_SNIP_OCR = 0x1000;
     private const int CMD_SNIP_IMAGE = 0x1001;
     private const int CMD_EXIT = 0x1002;
+    private const int CMD_HOTKEYS = 0x1003;
     private static readonly uint TRAY_CALLBACK = User32.WM_APP + 1;
+
+    // 功能名统一取自配置类, 保证菜单文字与提示文案一致
+    private const string LabelOcr = HotkeySettings.LabelOcr;
+    private const string LabelImage = HotkeySettings.LabelImage;
 
     // 静态持有: 窗口过程委托必须防止被 GC; 单实例引用用于回调
     private static WndProcDelegate _wndProcRef = WndProc;
@@ -24,8 +29,11 @@ public sealed class TrayController : IDisposable
 
     private readonly IntPtr _hwnd;
     private readonly IntPtr _hIcon;
-    private readonly IntPtr _hMenu;
+    private IntPtr _hMenu; // 换热键时会重建菜单, 因此不是 readonly
     private Icon? _icon;
+
+    // 菜单文字里的快捷键显示, 改完热键后由 SetHotkeyLabels 刷新
+    private HotkeySettings _labels = new();
 
     /// <summary>宿主窗口句柄 (热键也注册在这里)</summary>
     public IntPtr WindowHandle => _hwnd;
@@ -33,6 +41,7 @@ public sealed class TrayController : IDisposable
     public event Action? SnipOcrRequested;
     public event Action? SnipImageRequested;
     public event Action? ExitRequested;
+    public event Action? HotkeysRequested;
 
     /// <summary>注册窗口类与宿主窗口, 创建右键菜单和托盘图标; 任一步失败抛 Win32Exception</summary>
     public TrayController()
@@ -70,10 +79,7 @@ public sealed class TrayController : IDisposable
                 Marshal.GetLastWin32Error(),
                 "CreatePopupMenu 失败");
         }
-        User32.AppendMenu(_hMenu, User32.MF_STRING, (IntPtr)CMD_SNIP_OCR, "截图并识别 (F1)");
-        User32.AppendMenu(_hMenu, User32.MF_STRING, (IntPtr)CMD_SNIP_IMAGE, "仅截图 (F2)");
-        User32.AppendMenu(_hMenu, User32.MF_SEPARATOR, IntPtr.Zero, null);
-        User32.AppendMenu(_hMenu, User32.MF_STRING, (IntPtr)CMD_EXIT, "退出");
+        BuildMenu();
 
         // 3. 托盘图标
         var nid = new Shell32.NOTIFYICONDATA
@@ -84,12 +90,55 @@ public sealed class TrayController : IDisposable
             uFlags = Shell32.NIF_MESSAGE | Shell32.NIF_ICON | Shell32.NIF_TIP | Shell32.NIF_VERSION | Shell32.NIF_SHOWTIP,
             uCallbackMessage = TRAY_CALLBACK,
             hIcon = _hIcon,
-            szTip = "SnipasteOCR - F1 截图识别 / F2 截图",
+            szTip = TipText(_labels),
             uVersion = 4,
         };
         Shell32.Shell_NotifyIcon(Shell32.NIM_SETVERSION, ref nid);
         if (!Shell32.Shell_NotifyIcon(Shell32.NIM_ADD, ref nid))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Shell_NotifyIcon 失败");
+    }
+
+    /// <summary>填充右键菜单 (菜单文字带上当前快捷键)</summary>
+    private void BuildMenu()
+    {
+        User32.AppendMenu(_hMenu, User32.MF_STRING, (IntPtr)CMD_SNIP_OCR, $"{LabelOcr} ({_labels.SnipOcr.Display})");
+        User32.AppendMenu(_hMenu, User32.MF_STRING, (IntPtr)CMD_SNIP_IMAGE, $"{LabelImage} ({_labels.SnipImage.Display})");
+        User32.AppendMenu(_hMenu, User32.MF_STRING, (IntPtr)CMD_HOTKEYS, "快捷键设置...");
+        User32.AppendMenu(_hMenu, User32.MF_SEPARATOR, IntPtr.Zero, null);
+        User32.AppendMenu(_hMenu, User32.MF_STRING, (IntPtr)CMD_EXIT, "退出");
+    }
+
+    /// <summary>托盘悬停提示文本</summary>
+    private static string TipText(HotkeySettings s) =>
+        $"SnipasteOCR - {s.SnipOcr.Display} {LabelOcr} / {s.SnipImage.Display} {LabelImage}";
+
+    /// <summary>
+    /// 热键变更后刷新菜单文字与托盘提示。
+    /// 直接重建菜单比改菜单项文本简单可靠 (重建时没有正在跟踪中的菜单)
+    /// </summary>
+    public void SetHotkeyLabels(HotkeySettings settings)
+    {
+        _labels = settings.Clone();
+
+        var oldMenu = _hMenu;
+        var newMenu = User32.CreatePopupMenu();
+        if (newMenu == IntPtr.Zero) return; // 保持旧菜单可用, 不影响功能
+        _hMenu = newMenu;
+        BuildMenu();
+        User32.DestroyMenu(oldMenu);
+
+        var nid = new Shell32.NOTIFYICONDATA
+        {
+            cbSize = (int)Marshal.SizeOf<Shell32.NOTIFYICONDATA>(),
+            hWnd = _hwnd,
+            uID = 1,
+            uFlags = Shell32.NIF_MESSAGE | Shell32.NIF_ICON | Shell32.NIF_TIP | Shell32.NIF_VERSION | Shell32.NIF_SHOWTIP,
+            uCallbackMessage = TRAY_CALLBACK,
+            hIcon = _hIcon,
+            szTip = TipText(_labels),
+            uVersion = 4,
+        };
+        Shell32.Shell_NotifyIcon(Shell32.NIM_MODIFY, ref nid);
     }
 
     /// <summary>宿主窗口过程: 处理托盘回调 (双击=截图识别, 右键=弹菜单), 其余走默认处理</summary>
@@ -151,6 +200,7 @@ public sealed class TrayController : IDisposable
         {
             case CMD_SNIP_OCR: _instance?.SnipOcrRequested?.Invoke(); break;
             case CMD_SNIP_IMAGE: _instance?.SnipImageRequested?.Invoke(); break;
+            case CMD_HOTKEYS: _instance?.HotkeysRequested?.Invoke(); break;
             case CMD_EXIT: _instance?.ExitRequested?.Invoke(); break;
         }
     }

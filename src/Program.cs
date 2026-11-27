@@ -11,6 +11,10 @@ internal static class Program
 {
     private static Mutex? _singleInstanceMutex;
 
+    // 托盘菜单点"快捷键设置"时, 从 WndProc 里 PostMessage 出来,
+    // 交回消息循环再打开对话框 (避免在窗口过程内嵌套模态循环)
+    private const uint WM_SHOW_HOTKEYS = User32.WM_APP + 2;
+
     [STAThread]
     /// <summary>
     /// 程序入口: 单实例检查 -> 托盘/热键初始化 -> 手动消息循环
@@ -34,26 +38,20 @@ internal static class Program
             // 托盘图标 + 不可见宿主窗口; 全局热键也注册在该窗口上
             tray.SnipOcrRequested += () => SnipCoordinator.Start(ocr: true);
             tray.SnipImageRequested += () => SnipCoordinator.Start(ocr: false);
+            tray.HotkeysRequested += () =>
+                User32.PostMessage(tray.WindowHandle, WM_SHOW_HOTKEYS, IntPtr.Zero, IntPtr.Zero);
 
             IntPtr hwnd = tray.WindowHandle;
 
-            var failures = new List<string>();
-            // 注册全局热键; 失败项 (常见: 被浏览器/IDE 占用) 收集后统一提示
-            if (!User32.RegisterHotKey(hwnd, (int)HotKeyId.SnipOcr, 0, (uint)Keys.F1))
-            {
-                failures.Add($"F1 注册失败: {Marshal.GetLastWin32Error()}");
-            }
-            if (!User32.RegisterHotKey(hwnd, (int)HotKeyId.SnipImage, 0, (uint)Keys.F2))
-            {
-                failures.Add($"F2 注册失败: {Marshal.GetLastWin32Error()}");
-            }
-
-            if (failures.Count > 0)
+            // 全局热键来自配置文件 (%APPDATA%\SnipasteOcr\hotkeys.txt), 缺失时用默认的 F1 / F2
+            var notes = HotkeyManager.Initialize(hwnd);
+            tray.SetHotkeyLabels(HotkeyManager.Current);
+            if (notes.Count > 0)
             {
                 MessageBox.Show(
-                    "以下热键注册失败 (可能被浏览器/IDE 等程序占用):\n  " + string.Join("\n  ", failures) +
-                    "\n\n仍可右键系统托盘图标操作。",
-                    "SnipasteOCR - 热键冲突", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    string.Join("\n", notes) +
+                    "\n\n仍可通过右键托盘图标操作, 也可在“快捷键设置”里更换热键。",
+                    "SnipasteOCR - 热键提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             tray.ExitRequested += () => Environment.Exit(0);
@@ -72,6 +70,10 @@ internal static class Program
                                 SnipCoordinator.Start(ocr: true);
                             else if (id == (int)HotKeyId.SnipImage)
                                 SnipCoordinator.Start(ocr: false);
+                        }
+                        else if (msg.message == WM_SHOW_HOTKEYS)
+                        {
+                            ShowHotkeyDialog(tray);
                         }
 
                         User32.TranslateMessage(ref msg);
@@ -98,5 +100,16 @@ internal static class Program
         }
     }
 
+    /// <summary>打开快捷键设置对话框; 保存成功后刷新托盘菜单与托盘提示</summary>
+    private static void ShowHotkeyDialog(TrayController tray)
+    {
+        using var dialog = new HotkeyDialog(HotkeyManager.Current, candidate =>
+        {
+            string? error = HotkeyManager.TryApply(candidate);
+            if (error == null) tray.SetHotkeyLabels(HotkeyManager.Current);
+            return error;
+        });
+        dialog.ShowDialog();
+    }
    
 }
